@@ -1,0 +1,67 @@
+name: Build Soul Slayer for Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths-ignore:
+      - "**/*.md"
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GODOT_VERSION: "4.7.2"
+      GODOT_STATUS: "stable"
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Install Godot and Windows export templates
+        shell: bash
+        run: |
+          set -euo pipefail
+          V="${GODOT_VERSION}-${GODOT_STATUS}"
+          BASE="https://github.com/godotengine/godot/releases/download/${V}"
+          curl -fL --retry 3 "${BASE}/Godot_v${V}_linux.x86_64.zip" -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp
+          sudo install -m 755 "/tmp/Godot_v${V}_linux.x86_64" /usr/local/bin/godot
+          curl -fL --retry 3 "${BASE}/Godot_v${V}_export_templates.tpz" -o /tmp/templates.tpz
+          mkdir -p "/tmp/godot_templates"
+          unzip -q /tmp/templates.tpz -d /tmp/godot_templates
+          mkdir -p "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.${GODOT_STATUS}"
+          cp -a /tmp/godot_templates/templates/. "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.${GODOT_STATUS}/"
+
+      - name: Import assets and validate project
+        run: godot --headless --path . --editor --import --quit
+
+      - name: Export Windows release
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          godot --headless --path . --export-release "Windows Desktop" "build/SoulSlayer.exe"
+          test -s build/SoulSlayer.exe
+
+      - name: Package game
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          cp build/SoulSlayer.exe release/
+          if [ -f build/SoulSlayer.pck ]; then cp build/SoulSlayer.pck release/; fi
+          printf 'Soul Slayer for Windows x64\nRun SoulSlayer.exe\nKeep any .pck file alongside the .exe.\n' > release/README.txt
+          cd release
+          zip -q ../SoulSlayer_Windows_x64.zip ./*
+
+      - name: Upload downloadable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: SoulSlayer-Windows-x64
+          path: SoulSlayer_Windows_x64.zip
+          if-no-files-found: error
+          retention-days: 30
