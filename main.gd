@@ -36,6 +36,10 @@ var soul_ranks: Array[int] = [0,0,0,0,0]
 var total_offline_seconds: int = 0
 var last_saved_unix: int = 0
 var offline_report: String = ""
+var main_menu_layer: CanvasLayer
+var main_menu_root: Control
+var game_started: bool = false
+var menu_status: Label
 var offline_gold_last: int = 0
 var offline_xp_last: int = 0
 
@@ -302,7 +306,7 @@ func _ready() -> void:
 	calculate_offline_rewards()
 	refresh_calendar()
 	spawn_enemy()
-	var t := make_label("SOUL SLAYER  /  0.9.2", Vector2(24,12), 27)
+	var t := make_label("SOUL SLAYER  /  1.0", Vector2(24,12), 27)
 	t.modulate = Color("#edcb87")
 	stats = make_label("", Vector2(390,18), 20)
 	xp_bar = ProgressBar.new()
@@ -362,8 +366,71 @@ func _ready() -> void:
 		cast.pressed.connect(cast_slot.bind(i))
 		cast_buttons.append(cast)
 	show_tab(0)
+	build_main_menu()
 	if offline_report != "":
 		call_deferred("show_offline_popup")
+
+
+func build_main_menu() -> void:
+	main_menu_layer = CanvasLayer.new()
+	main_menu_layer.layer = 100
+	add_child(main_menu_layer)
+	main_menu_root = Control.new()
+	main_menu_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	main_menu_root.process_mode = Node.PROCESS_MODE_ALWAYS
+	main_menu_layer.add_child(main_menu_root)
+	var backdrop := ColorRect.new()
+	backdrop.color = Color("#0b1424")
+	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
+	main_menu_root.add_child(backdrop)
+	var title := Label.new()
+	title.text = "SOUL SLAYER"
+	title.position = Vector2(345,135)
+	title.size = Vector2(590,75)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size",54)
+	title.add_theme_color_override("font_color",Color("#e9c47f"))
+	main_menu_root.add_child(title)
+	var subtitle := Label.new()
+	subtitle.text = "ПЕРВЫЙ РЕЛИЗ  •  1.0"
+	subtitle.position = Vector2(390,218)
+	subtitle.size = Vector2(500,35)
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	subtitle.add_theme_font_size_override("font_size",18)
+	subtitle.add_theme_color_override("font_color",Color("#9eb2cd"))
+	main_menu_root.add_child(subtitle)
+	var play := make_button("⚔  ИГРАТЬ",Vector2(445,310),Vector2(390,68),main_menu_root)
+	play.add_theme_font_size_override("font_size",25)
+	play.pressed.connect(start_game)
+	var fullscreen := make_button("РЕЖИМ ЭКРАНА: ОКНО / ПОЛНЫЙ",Vector2(445,399),Vector2(390,58),main_menu_root)
+	fullscreen.pressed.connect(toggle_fullscreen)
+	var quit := make_button("СОХРАНИТЬ И ВЫЙТИ",Vector2(445,475),Vector2(390,58),main_menu_root)
+	quit.pressed.connect(quit_from_menu)
+	menu_status = Label.new()
+	menu_status.text = "ESC — главное меню • F11 — полный экран • прогресс сохраняется"
+	menu_status.position = Vector2(300,665)
+	menu_status.size = Vector2(680,35)
+	menu_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	menu_status.add_theme_font_size_override("font_size",16)
+	menu_status.add_theme_color_override("font_color",Color("#a8b7ca"))
+	main_menu_root.add_child(menu_status)
+	get_tree().paused = true
+
+func start_game() -> void:
+	game_started = true
+	main_menu_layer.visible = false
+	get_tree().paused = false
+
+func return_to_menu() -> void:
+	save_game()
+	game_started = false
+	main_menu_layer.visible = true
+	get_tree().paused = true
+
+func quit_from_menu() -> void:
+	save_game()
+	get_tree().quit()
 
 func bar_style(color: Color) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
@@ -496,12 +563,14 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_F11:
 			toggle_fullscreen()
+		elif event.keycode == KEY_ESCAPE and game_started:
+			return_to_menu()
 		elif event.keycode >= KEY_F1 and event.keycode <= KEY_F5:
 			open_group(event.keycode - KEY_F1)
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode >= KEY_1 and event.keycode <= KEY_4:
+		if game_started and event.keycode >= KEY_1 and event.keycode <= KEY_4:
 			cast_slot(event.keycode - KEY_1)
 
 func confirm_reset() -> void:
