@@ -1,0 +1,24 @@
+SOUL SLAYER - AUTOMATIC WINDOWS EXE BUILD
+
+1. Create a new PRIVATE repository on https://github.com/new
+   (choose Private; do not initialize with README).
+2. Unpack this ZIP on your computer.
+3. Upload the CONTENTS of the unpacked folder to the repository,
+   including the hidden .github folder. GitHub web upload may hide dot-folders;
+   easiest reliable way: use GitHub Desktop to publish this folder as a private repository.
+4. Open your GitHub repository > Actions > Build Soul Slayer for Windows.
+5. Click Run workflow > Run workflow.
+6. When the workflow completes, open its run and download
+   SoulSlayer-Windows-x64 from the Artifacts section.
+7. Extract that artifact, then extract SoulSlayer_Windows_x64.zip.
+   Run SoulSlayer.exe. Keep the .pck alongside the .exe if present.
+
+For subsequent versions, replace the project files in the repository.
+The build runs automatically after pushing to main/master.
+
+The workflow uses Godot 4.7.2 stable, matching the user's editor screenshot.
+If your installed Godot version differs, change GODOT_VERSION and/or GODOT_STATUS
+in .github/workflows/windows-build.yml.
+
+No Windows executable is included in this source ZIP. GitHub Actions creates it.
+Back up game saves before testing a new build.
