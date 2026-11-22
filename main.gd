@@ -40,6 +40,16 @@ var main_menu_layer: CanvasLayer
 var main_menu_root: Control
 var game_started: bool = false
 var menu_status: Label
+var wardrobe_panel: Control
+var wardrobe_preview: Control
+var avatar_style: Array[int] = [0,0,0,0,0,0,0]
+var window_mode_setting: int = 0
+const STYLE_OPTIONS = [6,8,8,8,8,8,8]
+const STYLE_NAMES = ["Наряд","Причёска","Цвет волос","Цвет кожи","Цвет глаз","Цвет брони","Плащ"]
+const STYLE_COLORS = ["#e7d3a4","#cf8b57","#4e2f30","#f5e7cb","#a8e6ff","#7e8dba","#b49c5d","#d7a1e6"]
+var wardrobe_value_labels: Array[Label] = []
+var wardrobe_avatar: TextureRect
+var weapon_icons: Array[Texture2D] = []
 var offline_gold_last: int = 0
 var offline_xp_last: int = 0
 
@@ -301,12 +311,15 @@ func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	owned.resize(30)
 	load_game()
+	apply_window_mode()
+	for i in range(30):
+		weapon_icons.append(load("res://assets/weapons/sword_%02d.png" % i))
 	frontier = maxi(frontier,stage)
 	best_stage_ever = maxi(best_stage_ever,frontier)
 	calculate_offline_rewards()
 	refresh_calendar()
 	spawn_enemy()
-	var t := make_label("SOUL SLAYER  /  1.0", Vector2(24,12), 27)
+	var t := make_label("SOUL SLAYER  /  1.1", Vector2(24,12), 27)
 	t.modulate = Color("#edcb87")
 	stats = make_label("", Vector2(390,18), 20)
 	xp_bar = ProgressBar.new()
@@ -384,38 +397,137 @@ func build_main_menu() -> void:
 	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
 	main_menu_root.add_child(backdrop)
-	var title := Label.new()
-	title.text = "SOUL SLAYER"
-	title.position = Vector2(345,135)
-	title.size = Vector2(590,75)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size",54)
-	title.add_theme_color_override("font_color",Color("#e9c47f"))
-	main_menu_root.add_child(title)
-	var subtitle := Label.new()
-	subtitle.text = "ПЕРВЫЙ РЕЛИЗ  •  1.0"
-	subtitle.position = Vector2(390,218)
-	subtitle.size = Vector2(500,35)
-	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	subtitle.add_theme_font_size_override("font_size",18)
-	subtitle.add_theme_color_override("font_color",Color("#9eb2cd"))
-	main_menu_root.add_child(subtitle)
-	var play := make_button("⚔  ИГРАТЬ",Vector2(445,310),Vector2(390,68),main_menu_root)
-	play.add_theme_font_size_override("font_size",25)
+	var artwork := TextureRect.new()
+	artwork.texture = BG
+	artwork.position = Vector2(0,0)
+	artwork.size = Vector2(1280,800)
+	artwork.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	artwork.stretch_mode = TextureRect.STRETCH_SCALE
+	artwork.modulate = Color(0.30,0.40,0.56,0.33)
+	main_menu_root.add_child(artwork)
+	var panel := ColorRect.new()
+	panel.color = Color(0.055,0.095,0.16,0.91)
+	panel.position = Vector2(290,72)
+	panel.size = Vector2(700,645)
+	main_menu_root.add_child(panel)
+	var title := make_label("SOUL SLAYER",Vector2(435,113),54,main_menu_root)
+	title.modulate = Color("#f3ce8d")
+	make_label("ОБЛИК ЛЕГЕНДЫ  •  ВЕРСИЯ 1.1",Vector2(449,194),20,main_menu_root)
+	var description := make_label("Idle RPG о герое, сражающемся с монстрами.\nСобирай 30 мечей, развивай навыки, побеждай боссов\nи перерождайся, чтобы стать сильнее.",Vector2(360,247),18,main_menu_root)
+	description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var play := make_button("⚔  ПРОДОЛЖИТЬ",Vector2(445,355),Vector2(390,62),main_menu_root)
 	play.pressed.connect(start_game)
-	var fullscreen := make_button("РЕЖИМ ЭКРАНА: ОКНО / ПОЛНЫЙ",Vector2(445,399),Vector2(390,58),main_menu_root)
-	fullscreen.pressed.connect(toggle_fullscreen)
-	var quit := make_button("СОХРАНИТЬ И ВЫЙТИ",Vector2(445,475),Vector2(390,58),main_menu_root)
+	var look := make_button("✦  ГАРДЕРОБ ГЕРОЯ",Vector2(445,429),Vector2(390,58),main_menu_root)
+	look.pressed.connect(open_wardrobe)
+	var fullscreen := make_button("▣  РЕЖИМ ЭКРАНА",Vector2(445,499),Vector2(390,58),main_menu_root)
+	fullscreen.pressed.connect(cycle_window_mode)
+	var quit := make_button("СОХРАНИТЬ И ВЫЙТИ",Vector2(445,569),Vector2(390,58),main_menu_root)
 	quit.pressed.connect(quit_from_menu)
-	menu_status = Label.new()
-	menu_status.text = "ESC — главное меню • F11 — полный экран • прогресс сохраняется"
-	menu_status.position = Vector2(300,665)
-	menu_status.size = Vector2(680,35)
-	menu_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	menu_status.add_theme_font_size_override("font_size",16)
-	menu_status.add_theme_color_override("font_color",Color("#a8b7ca"))
-	main_menu_root.add_child(menu_status)
+	menu_status = make_label("ESC — меню  •  F11 — без рамок  •  прогресс сохраняется",Vector2(358,675),15,main_menu_root)
+	wardrobe_panel = Control.new()
+	wardrobe_panel.position = Vector2(120,78)
+	wardrobe_panel.size = Vector2(1040,640)
+	main_menu_root.add_child(wardrobe_panel)
+	var wbg := ColorRect.new()
+	wbg.color = Color("#111e31")
+	wbg.size = Vector2(1040,640)
+	wardrobe_panel.add_child(wbg)
+	make_label("ГАРДЕРОБ  •  ОБЛИК ГЕРОЯ",Vector2(34,24),29,wardrobe_panel)
+	make_label("Косметические изменения не влияют на характеристики.",Vector2(34,72),17,wardrobe_panel)
+	wardrobe_avatar = TextureRect.new()
+	wardrobe_avatar.texture = HERO
+	wardrobe_avatar.position = Vector2(55,165)
+	wardrobe_avatar.size = Vector2(330,330)
+	wardrobe_avatar.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	wardrobe_avatar.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	wardrobe_panel.add_child(wardrobe_avatar)
+	wardrobe_value_labels.clear()
+	for i in range(7):
+		var y := 110 + i*62
+		make_label(STYLE_NAMES[i],Vector2(440,y),17,wardrobe_panel)
+		var prev := make_button("◀",Vector2(685,y),Vector2(54,43),wardrobe_panel)
+		prev.pressed.connect(change_avatar.bind(i,-1))
+		var val := make_label("",Vector2(744,y+6),17,wardrobe_panel)
+		wardrobe_value_labels.append(val)
+		var nxt := make_button("▶",Vector2(932,y),Vector2(54,43),wardrobe_panel)
+		nxt.pressed.connect(change_avatar.bind(i,1))
+	var reset := make_button("СБРОСИТЬ ОБЛИК",Vector2(440,563),Vector2(225,48),wardrobe_panel)
+	reset.pressed.connect(reset_avatar)
+	var back := make_button("СОХРАНИТЬ И НАЗАД",Vector2(685,563),Vector2(302,48),wardrobe_panel)
+	back.pressed.connect(close_wardrobe)
+	wardrobe_panel.visible = false
+	refresh_avatar_preview()
 	get_tree().paused = true
+
+func open_wardrobe() -> void:
+	wardrobe_panel.visible = true
+	refresh_avatar_preview()
+
+func close_wardrobe() -> void:
+	save_game()
+	wardrobe_panel.visible = false
+
+func change_avatar(i: int, delta: int) -> void:
+	avatar_style[i] = posmod(avatar_style[i]+delta,STYLE_OPTIONS[i])
+	refresh_avatar_preview()
+
+func reset_avatar() -> void:
+	avatar_style = [0,0,0,0,0,0,0]
+	refresh_avatar_preview()
+
+func refresh_avatar_preview() -> void:
+	if wardrobe_avatar == null:
+		return
+	# Preview is an edited pixel-art portrait, generated from the original knight sprite.
+	var img := HERO.get_image()
+	img = recolor_knight(img)
+	wardrobe_avatar.texture = ImageTexture.create_from_image(img)
+	for i in range(wardrobe_value_labels.size()):
+		wardrobe_value_labels[i].text = "%d / %d" % [avatar_style[i]+1,STYLE_OPTIONS[i]]
+	queue_redraw()
+
+func recolor_knight(img: Image) -> Image:
+	# Palette replacement keeps the existing character silhouette and animations.
+	var armor := Color(STYLE_COLORS[avatar_style[5]])
+	var hair := Color(STYLE_COLORS[avatar_style[2]])
+	var cloth := Color(STYLE_COLORS[(avatar_style[0]+avatar_style[6])%8])
+	for y in range(img.get_height()):
+		for x in range(img.get_width()):
+			var c := img.get_pixel(x,y)
+			if c.a < 0.5:
+				continue
+			if c.b > c.r*1.17 and c.b > c.g*1.05:
+				img.set_pixel(x,y,c.lerp(armor,0.34))
+			elif c.r > c.b*1.30 and c.g > c.b*1.16:
+				img.set_pixel(x,y,c.lerp(cloth,0.26))
+	# Face palette accents are applied to the original 40x40 sprite.
+	var skin := Color(STYLE_COLORS[avatar_style[3]])
+	var eyes := Color(STYLE_COLORS[avatar_style[4]])
+	for yy in range(12,16):
+		for xx in range(19,25):
+			if img.get_pixel(xx,yy).a > 0.5:
+				img.set_pixel(xx,yy,skin)
+	img.set_pixel(24,14,eyes)
+	var width := img.get_width()
+	var height := img.get_height()
+	for yy in range(avatar_style[1]+2):
+		for xx in range(10+avatar_style[1]):
+			var px := width/2-5-avatar_style[1]/2+xx
+			var py := height/5+yy
+			if px >= 0 and py >= 0 and px < width and py < height:
+				img.set_pixel(px,py,hair)
+	return img
+
+func cycle_window_mode() -> void:
+	window_mode_setting = (window_mode_setting+1)%3
+	apply_window_mode()
+	save_game()
+
+func apply_window_mode() -> void:
+	match window_mode_setting:
+		0: DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+		1: DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+		2: DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
 
 func start_game() -> void:
 	game_started = true
@@ -426,6 +538,7 @@ func return_to_menu() -> void:
 	save_game()
 	game_started = false
 	main_menu_layer.visible = true
+	wardrobe_panel.visible = false
 	get_tree().paused = true
 
 func quit_from_menu() -> void:
@@ -500,8 +613,10 @@ func show_tab(index: int) -> void:
 		3: build_summon()
 		4: build_skills()
 		5:
-			var full := make_button("Полноэкранный режим / окно (F11)",Vector2.ZERO,Vector2(500,55),content)
-			full.pressed.connect(toggle_fullscreen)
+			var full := make_button("Режим экрана: окно / без рамок / полный",Vector2.ZERO,Vector2(500,55),content)
+			full.pressed.connect(cycle_window_mode)
+			var menu_btn := make_button("В ГЛАВНОЕ МЕНЮ",Vector2(0,405),Vector2(500,55),content)
+			menu_btn.pressed.connect(return_to_menu)
 			var reset := make_button("Сбросить прогресс",Vector2(530,0),Vector2(500,55),content)
 			reset.pressed.connect(confirm_reset)
 			var shake := make_button("Тряска: " + ("ВКЛ" if shake_enabled else "ВЫКЛ"),Vector2(0,75),Vector2(500,55),content)
@@ -554,18 +669,19 @@ func short_num(n: float) -> String:
 	return str(int(n))
 
 func toggle_fullscreen() -> void:
-	if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN:
-		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
-	else:
-		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+	window_mode_setting = 0 if window_mode_setting != 0 else 1
+	apply_window_mode()
+	save_game()
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_F11:
 			toggle_fullscreen()
+		elif event.keycode == KEY_ESCAPE and not game_started and wardrobe_panel != null and wardrobe_panel.visible:
+			close_wardrobe()
 		elif event.keycode == KEY_ESCAPE and game_started:
 			return_to_menu()
-		elif event.keycode >= KEY_F1 and event.keycode <= KEY_F5:
+		elif game_started and event.keycode >= KEY_F1 and event.keycode <= KEY_F5:
 			open_group(event.keycode - KEY_F1)
 
 func _input(event: InputEvent) -> void:
@@ -737,7 +853,10 @@ func _draw() -> void:
 	var bob := sin(clock * 4.0) * 3.0
 	draw_ellipse_shadow(Vector2(hx,475), 65.0)
 	draw_ellipse_shadow(Vector2(ex,475), 70.0)
-	draw_texture_rect(HERO, Rect2(hx-100,275+bob,200,200), false)
+	draw_texture_rect(HERO, Rect2(hx-100,275+bob,200,200), false, Color(STYLE_COLORS[avatar_style[5]]).lerp(Color.WHITE,0.72))
+	# Outfit and hair color accents on the battle sprite.
+	draw_rect(Rect2(hx-28,385+bob,55,9),Color(STYLE_COLORS[(avatar_style[0]+avatar_style[6])%8]))
+	draw_rect(Rect2(hx-15,314+bob,31,7),Color(STYLE_COLORS[avatar_style[2]]))
 	var size_px := 260.0 if kind() == 3 else 210.0
 	var tint := Color(1.0,0.82,0.82) if hit > 0.26 else Color.WHITE
 	draw_texture_rect(KEEPER if stage == 50 and dungeon < 0 else REGIONAL_TEXTURES[zone()][kind()], Rect2(ex-size_px/2,475-size_px+bob,size_px,size_px), false,tint)
@@ -844,7 +963,7 @@ func update_ui() -> void:
 
 func save_game() -> void:
 	# Write to a temporary file, validate it, then replace the main save.
-	var payload := JSON.stringify({"frontier":frontier,"dungeon_runs":dungeon_runs,"gold":gold,"stage":frontier,"damage":damage,"cost":cost,"crystals":crystals,"hero_level":hero_level,"xp":xp,"ranks":ranks,"owned":owned,"equipped":equipped,"summons":summons,"skill_level":skill_level,"copies":copies,"slots":slots,"mana_rank":mana_rank,"regen_rank":regen_rank,"mana":mana,"auto_skill":auto_skill,"shake_enabled":shake_enabled,"cooldown":cooldown,"daily_date":daily_date,"daily_progress":daily_progress,"daily_claimed":daily_claimed,"daily_chest_claimed":daily_chest_claimed,"total_kills":total_kills,"total_bosses":total_bosses,"total_skill_casts":total_skill_casts,"total_weapon_rolls":total_weapon_rolls,"achievements_claimed":achievements_claimed,"story_claimed":story_claimed,"title_selected":title_selected,"login_last_date":login_last_date,"login_streak":login_streak,"login_claimed":login_claimed,"souls":souls,"rebirths":rebirths,"best_stage_ever":best_stage_ever,"soul_ranks":soul_ranks,"total_offline_seconds":total_offline_seconds,"music_enabled":music_enabled,"sounds_enabled":sounds_enabled,"music_volume":music_volume,"effects_volume":effects_volume,"last_saved_unix":int(Time.get_unix_time_from_system())})
+	var payload := JSON.stringify({"frontier":frontier,"dungeon_runs":dungeon_runs,"gold":gold,"stage":frontier,"damage":damage,"cost":cost,"crystals":crystals,"hero_level":hero_level,"xp":xp,"ranks":ranks,"owned":owned,"equipped":equipped,"summons":summons,"skill_level":skill_level,"copies":copies,"slots":slots,"mana_rank":mana_rank,"regen_rank":regen_rank,"mana":mana,"auto_skill":auto_skill,"shake_enabled":shake_enabled,"cooldown":cooldown,"daily_date":daily_date,"daily_progress":daily_progress,"daily_claimed":daily_claimed,"daily_chest_claimed":daily_chest_claimed,"total_kills":total_kills,"total_bosses":total_bosses,"total_skill_casts":total_skill_casts,"total_weapon_rolls":total_weapon_rolls,"achievements_claimed":achievements_claimed,"story_claimed":story_claimed,"title_selected":title_selected,"login_last_date":login_last_date,"login_streak":login_streak,"login_claimed":login_claimed,"souls":souls,"rebirths":rebirths,"best_stage_ever":best_stage_ever,"soul_ranks":soul_ranks,"total_offline_seconds":total_offline_seconds,"music_enabled":music_enabled,"sounds_enabled":sounds_enabled,"music_volume":music_volume,"effects_volume":effects_volume,"avatar_style":avatar_style,"window_mode_setting":window_mode_setting,"last_saved_unix":int(Time.get_unix_time_from_system())})
 	var tmp := FileAccess.open(TEMP_PATH,FileAccess.WRITE)
 	if tmp == null:
 		return
@@ -871,6 +990,11 @@ func load_game() -> void:
 	if not data is Dictionary and FileAccess.file_exists(BACKUP_PATH):
 		data = JSON.parse_string(FileAccess.get_file_as_string(BACKUP_PATH))
 	if data is Dictionary:
+		var appearance = data.get("avatar_style",[])
+		if appearance is Array and appearance.size() == 7:
+			for j in range(7):
+				avatar_style[j] = clampi(int(appearance[j]),0,STYLE_OPTIONS[j]-1)
+		window_mode_setting = clampi(int(data.get("window_mode_setting",0)),0,2)
 		gold = maxi(0,int(data.get("gold",0)))
 		stage = maxi(1,int(data.get("stage",data.get("level",1))))
 		frontier = maxi(stage,int(data.get("frontier",stage)))
@@ -959,7 +1083,10 @@ func build_inventory() -> void:
 	inventory_list = ItemList.new()
 	inventory_list.position = Vector2.ZERO
 	inventory_list.size = Vector2(510,470)
-	inventory_list.max_columns = 2
+	inventory_list.max_columns = 3
+	inventory_list.fixed_icon_size = Vector2i(58,58)
+	inventory_list.icon_mode = ItemList.ICON_MODE_TOP
+	inventory_list.fixed_column_width = 155
 	inventory_list.add_theme_font_size_override("font_size",16)
 	content.add_child(inventory_list)
 	inventory_list.item_selected.connect(select_weapon)
@@ -1009,7 +1136,7 @@ func refresh_inventory() -> void:
 		if rarity_filter >= 0 and floori(i/5.0) != rarity_filter:
 			continue
 		weapon_ids.append(i)
-		inventory_list.add_item("%s  ×%d%s" % [WEAPONS[i],owned[i],"  [E]" if equipped == i else ""])
+		inventory_list.add_item("%s\n×%d%s" % [WEAPONS[i],owned[i],"  [E]" if equipped == i else ""],weapon_icons[i])
 		inventory_list.set_item_custom_fg_color(weapon_ids.size()-1,weapon_color(i) if owned[i]>0 else Color("#68788a"))
 	if selected not in weapon_ids:
 		selected = weapon_ids[0]
@@ -1022,7 +1149,7 @@ func select_weapon(i: int) -> void:
 	refresh_detail()
 
 func refresh_detail() -> void:
-	detail.text = "%s • %s\nУрон ×%.2f  |  В наличии: %d\nНадето: %s" % [WEAPONS[selected],RARITY[floori(selected / 5.0)],POWER[selected],owned[selected],WEAPONS[equipped] if equipped>=0 else "Начальный меч"]
+	detail.text = "%s\nРедкость: %s\nМножитель урона: ×%.2f\nКопий: %d\nСтатус: %s" % [WEAPONS[selected],RARITY[floori(selected / 5.0)],POWER[selected],owned[selected],"Экипирован" if equipped == selected else "Не экипирован"]
 	detail.modulate = weapon_color(selected)
 	equip_button.disabled = owned[selected] == 0 or equipped == selected
 	merge_button.disabled = selected == 29 or owned[selected] < 5

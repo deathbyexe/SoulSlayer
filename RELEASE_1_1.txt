@@ -1,0 +1,4 @@
+Soul Slayer 1.1 Облик легенды
+30 weapon pixel icons, click-to-inspect inventory, cosmetic wardrobe, updated main menu, window mode cycling, settings menu return.
+Save path remains user://soul_slayer_save.json. Back up saves before first launch.
+Godot export workflow included. Not runtime-tested.
